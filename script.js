@@ -1776,6 +1776,19 @@ function setupAuthentication() {
     if (googleAuth) {
         googleAuth.addEventListener('click', handleGoogleLogin);
     }
+
+    // Fills the existing login fields with the built-in demo account and
+    // submits through the normal handleLogin() path, so it's covered by
+    // the exact same validation/session logic as a real login — no
+    // separate code path to keep in sync.
+    const demoLoginBtn = document.getElementById('demo-login-btn');
+    if (demoLoginBtn) {
+        demoLoginBtn.addEventListener('click', function() {
+            document.getElementById('login-email').value = 'demo@smartpark.com';
+            document.getElementById('login-password').value = 'demo123';
+            handleLogin({ preventDefault: () => {}, target: loginForm });
+        });
+    }
 }
 
 function setupBooking() {

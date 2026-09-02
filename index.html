@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartPark - Intelligent Parking Solutions</title>
+    <meta name="description" content="SmartPark is a real-time parking management system with live slot availability, instant booking, and a personal dashboard — built with JavaScript and Firebase.">
+    <meta property="og:title" content="SmartPark - Intelligent Parking Solutions">
+    <meta property="og:description" content="Real-time parking slot tracking and booking, built with JavaScript and Firebase.">
+    <meta property="og:url" content="https://smartpark-hg.web.app">
+    <meta property="og:type" content="website">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234361ee'/%3E%3Ctext x='32' y='45' font-family='Arial, sans-serif' font-size='38' font-weight='bold' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
     <!-- Main Styles -->
     <link rel="stylesheet" href="style.css">
     <!-- Font Awesome Icons -->
@@ -1142,6 +1148,9 @@
                         <i class="fab fa-google"></i> Google
                     </button>
                 </div>
+                <button type="button" class="btn btn-block" id="demo-login-btn" style="margin-top: 0.75rem; background: #f0f4ff; color: var(--primary); border: 1px dashed var(--primary);">
+                    <i class="fas fa-bolt"></i> Try Demo Login (no signup needed)
+                </button>
                 <p class="auth-switch">
                     Don't have an account? <a href="javascript:void(0)" id="switch-to-signup">Sign up</a>
                 </p>
@@ -1612,7 +1621,7 @@
                     <!-- VIDEO IMPLEMENTATION HERE -->
                     <div class="video-container">
                         <video controls style="width: 100%; border-radius: 8px; max-height: 400px;">
-                            <source src="demo-video.mp4/Smartpark.mp4" type="video/mp4">
+                            <source src="assets/demo-video.mp4" type="video/mp4">
                             Your browser does not support the video tag.
                         </video>
                     </div>
