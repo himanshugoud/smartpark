@@ -101,6 +101,10 @@ This is a seeded demo account for evaluation purposes — no real personal data.
 
 > **Known limitation:** email/password accounts are validated against a custom `localStorage`-based system, not real Firebase Authentication — only the Google Sign-In path is backed by actual Firebase Auth. Migrating email/password to Firebase Auth as well is the natural next step for production use.
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Author
 
 **Himanshu Goud**
