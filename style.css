@@ -3018,6 +3018,79 @@ a:hover {
     margin-bottom: 1.5rem;
 }
 
+/* Google button: neutral/white look with a real multi-color G logo,
+   overriding the default blue .btn-outline styling used elsewhere. */
+.google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    background: var(--bg-card);
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+    font-weight: 500;
+}
+
+.google-btn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.03)) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+.google-icon {
+    flex-shrink: 0;
+}
+
+/* Compact sizing for the auth (login/signup) modals only — other modals
+   (settings, payment, etc.) keep their existing, larger sizing. */
+#login-modal .modal-content,
+#signup-modal .modal-content {
+    max-width: 380px;
+}
+
+#login-modal .modal-header,
+#signup-modal .modal-header {
+    padding: 1.1rem 1.5rem;
+}
+
+#login-modal .modal-header h2,
+#signup-modal .modal-header h2 {
+    font-size: 1.2rem;
+}
+
+#login-modal .modal-body,
+#signup-modal .modal-body {
+    padding: 1.4rem 1.5rem;
+}
+
+#login-modal .auth-form .form-group,
+#signup-modal .auth-form .form-group {
+    margin-bottom: 1rem;
+}
+
+#login-modal .auth-form input,
+#signup-modal .auth-form input {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+}
+
+#login-modal .auth-divider,
+#signup-modal .auth-divider {
+    margin: 1rem 0;
+}
+
+#login-modal .social-auth,
+#signup-modal .social-auth {
+    margin-bottom: 1rem;
+    gap: 0.55rem;
+}
+
+#login-modal .btn-block,
+#signup-modal .btn-block {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+}
+
 .auth-switch {
     text-align: center;
     color: var(--text-secondary);
