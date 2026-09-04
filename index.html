@@ -1498,14 +1498,30 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
+                <!-- Step 1: confirm which account this is -->
                 <form class="auth-form" id="forgot-password-form">
-                    <p>Enter your email address and we'll send you instructions to reset your password.</p>
+                    <p>Enter the email on your account, and you can set a new password right here.</p>
                     <div class="form-group">
                         <label for="reset-email">Email</label>
                         <input type="email" id="reset-email" placeholder="Enter your email" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+                    <button type="submit" class="btn btn-primary btn-block">Continue</button>
                 </form>
+
+                <!-- Step 2: shown only after the email is confirmed to match a real account -->
+                <form class="auth-form" id="reset-password-form" style="display: none;">
+                    <p>Choose a new password for <strong id="reset-password-email-display"></strong>.</p>
+                    <div class="form-group">
+                        <label for="new-reset-password">New Password</label>
+                        <input type="password" id="new-reset-password" placeholder="Enter new password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-reset-password">Confirm New Password</label>
+                        <input type="password" id="confirm-reset-password" placeholder="Confirm new password" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Set New Password</button>
+                </form>
+
                 <p class="auth-switch">
                     Remember your password? <a href="javascript:void(0)" id="back-to-login">Sign in</a>
                 </p>

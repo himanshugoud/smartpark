@@ -1723,6 +1723,13 @@ function setupAuthentication() {
         forgotPasswordLink.addEventListener('click', function(e) {
             e.preventDefault();
             closeModal();
+            // Always start this modal on step 1, even if it was left on
+            // the "set new password" step from a previous, abandoned
+            // attempt (e.g. the person closed it partway through).
+            document.getElementById('forgot-password-form').style.display = 'block';
+            document.getElementById('reset-password-form').style.display = 'none';
+            document.getElementById('forgot-password-form').reset();
+            document.getElementById('reset-password-form').reset();
             openModal('forgot-password-modal');
         });
     }
@@ -1770,6 +1777,11 @@ function setupAuthentication() {
     const forgotPasswordForm = document.getElementById('forgot-password-form');
     if (forgotPasswordForm) {
         forgotPasswordForm.addEventListener('submit', handleForgotPassword);
+    }
+
+    const resetPasswordForm = document.getElementById('reset-password-form');
+    if (resetPasswordForm) {
+        resetPasswordForm.addEventListener('submit', handleSetNewPassword);
     }
     
     const googleAuth = document.getElementById('google-auth');
@@ -3333,10 +3345,64 @@ function handleForgotPassword(e) {
         showToast('Please enter a valid email address', 'error');
         return;
     }
-    
-    showToast(`Password reset link sent to ${email}`, 'success');
+
+    // This app has no backend/email service to send a real reset link
+    // through (only Google Sign-In users are backed by real Firebase
+    // Auth — email/password accounts live only in this browser's
+    // localStorage). Previously this just showed a fake "email sent"
+    // toast that went nowhere. Since we already fully control this
+    // local account store, it's more honest to verify the account
+    // exists and let the person set a new password directly here,
+    // rather than pretend an email was sent.
+    const registeredUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
+    const matchedUser = registeredUsers.find(u => u.email === email);
+
+    if (!matchedUser) {
+        showToast('No account found with that email. Demo accounts (demo@smartpark.com) cannot be reset.', 'error');
+        return;
+    }
+
+    document.getElementById('reset-password-email-display').textContent = email;
+    document.getElementById('forgot-password-form').style.display = 'none';
+    document.getElementById('reset-password-form').style.display = 'block';
+}
+
+function handleSetNewPassword(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('reset-email').value.trim();
+    const newPassword = document.getElementById('new-reset-password').value.trim();
+    const confirmPassword = document.getElementById('confirm-reset-password').value.trim();
+
+    if (newPassword.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+
+    const registeredUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
+    const userIndex = registeredUsers.findIndex(u => u.email === email);
+
+    if (userIndex === -1) {
+        showToast('Something went wrong — please start over', 'error');
+        return;
+    }
+
+    registeredUsers[userIndex].password = newPassword;
+    localStorage.setItem('smartpark_users', JSON.stringify(registeredUsers));
+
+    showToast('Password updated — you can now sign in with your new password', 'success');
     closeModal();
     e.target.reset();
+
+    // Reset the modal back to its first step for next time it's opened.
+    document.getElementById('forgot-password-form').style.display = 'block';
+    document.getElementById('reset-password-form').style.display = 'none';
+    document.getElementById('reset-password-form').reset();
 }
 
 // ========================
