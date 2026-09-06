@@ -4,7 +4,7 @@ A real-time parking management system that shows live slot availability across m
 
 🔵 **Live demo:** [smartpark-hg.web.app](https://smartpark-hg.web.app) — try it instantly with the **"Try Demo Login"** button on the sign-in screen, no signup required.
 
-![Hosting](https://img.shields.io/badge/hosting-Firebase%20Hosting-orange?style=flat-square) ![Backend](https://img.shields.io/badge/backend-Firebase%20Realtime%20DB%20%2B%20Auth-blue?style=flat-square) ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow?style=flat-square)
+![Tests](https://github.com/himanshugoud/smartpark/actions/workflows/test.yml/badge.svg) ![Hosting](https://img.shields.io/badge/hosting-Firebase%20Hosting-orange?style=flat-square) ![Backend](https://img.shields.io/badge/backend-Firebase%20Realtime%20DB%20%2B%20Auth-blue?style=flat-square) ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow?style=flat-square)
 
 ---
 
@@ -57,6 +57,17 @@ A few things that went into this beyond a basic CRUD app:
 - Responsive layout across desktop and mobile
 - Social share previews (Open Graph + Twitter cards) so sharing the link looks intentional, not broken
 
+## Testing
+
+45 automated tests (Vitest) cover the logic that actually matters to get right: booking-cost calculation (including the exact $3.25 example shown in the app itself), slot-status transitions (available → booked/reserved → occupied → available again), and form validation (email, card details, password strength). These were deliberately extracted out of the DOM-heavy `script.js` into standalone, dependency-free modules (`pricing.js`, `validation.js`, `slotStatus.js`) specifically so they could be tested in isolation — the same modules are loaded as plain `<script>` includes in the browser and as CommonJS modules in the test suite.
+
+```
+npm install
+npm test
+```
+
+Tests run automatically on every push via GitHub Actions (see the badge at the top of this README).
+
 ## Tech Stack
 
 - **Frontend:** HTML5, CSS3, JavaScript (no framework)
@@ -68,6 +79,10 @@ A few things that went into this beyond a basic CRUD app:
 ```
 ├── index.html                 # Main app page
 ├── script.js                  # Core app logic (booking, auth, dashboard, parking grid)
+├── pricing.js                 # Pure booking-cost logic (unit-tested)
+├── validation.js               # Pure form/field validation logic (unit-tested)
+├── slotStatus.js               # Pure slot-status logic (unit-tested)
+├── tests/                      # Vitest test suite (45 tests)
 ├── style.css                  # Main styling
 ├── firebase-config.js         # Firebase initialization
 ├── imagescript.js             # Profile photo upload/handling

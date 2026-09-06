@@ -60,35 +60,9 @@ function capitalizeFirst(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-}
-
-function validateCardNumber(number) {
-    const re = /^[0-9]{13,19}$/;
-    return re.test(number.replace(/\s/g, ''));
-}
-
-function validateCardExpiry(expiry) {
-    const re = /^(0[1-9]|1[0-2])\/([0-9]{2})$/;
-    if (!re.test(expiry)) return false;
-    
-    const [month, year] = expiry.split('/');
-    const now = new Date();
-    const currentYear = now.getFullYear() % 100;
-    const currentMonth = now.getMonth() + 1;
-    
-    if (parseInt(year) < currentYear) return false;
-    if (parseInt(year) === currentYear && parseInt(month) < currentMonth) return false;
-    
-    return true;
-}
-
-function validateCVV(cvv) {
-    const re = /^[0-9]{3,4}$/;
-    return re.test(cvv);
-}
+// validateEmail, validateCardNumber, validateCardExpiry, and validateCVV
+// now live in validation.js (loaded before this file), so they can be
+// unit-tested without a DOM.
 
 function togglePasswordVisibility(inputId, icon) {
     const passwordInput = document.getElementById(inputId);
@@ -859,9 +833,9 @@ function buildSlotLayout(floor) {
         if (typeRand < 0.05) type = 'handicap';
         else if (typeRand < 0.1) type = 'electric';
 
-        let price = 2.50;
-        if (type === 'electric') price = 2.25;
-        if (type === 'handicap') price = 2.00;
+        // Price lookup now lives in pricing.js (getSlotPrice) — single
+        // source of truth shared with the booking-cost calculation.
+        const price = getSlotPrice(type);
 
         slots.push({
             id: slotId,
@@ -2192,32 +2166,17 @@ function setupPasswordStrength() {
     if (!passwordInput || !strengthFill || !strengthText) return;
     
     passwordInput.addEventListener('input', function() {
-        const password = this.value;
-        let strength = 0;
-        
-        if (password.length >= 8) strength++;
-        if (/[A-Z]/.test(password)) strength++;
-        if (/[0-9]/.test(password)) strength++;
-        if (/[^A-Za-z0-9]/.test(password)) strength++;
-        
-        const width = strength * 25;
-        strengthFill.style.width = `${width}%`;
-        
-        let text = 'Weak';
+        // Scoring logic now lives in validation.js (getPasswordStrength) so
+        // it can be unit-tested without a DOM. This just handles display.
+        const { widthPercent, label } = getPasswordStrength(this.value);
+
+        strengthFill.style.width = `${widthPercent}%`;
+
         let color = 'var(--danger)';
-        
-        if (strength >= 4) {
-            text = 'Strong';
-            color = 'var(--success)';
-        } else if (strength >= 3) {
-            text = 'Good';
-            color = 'var(--warning)';
-        } else if (strength >= 2) {
-            text = 'Fair';
-            color = 'var(--warning)';
-        }
-        
-        strengthText.textContent = text;
+        if (label === 'Strong') color = 'var(--success)';
+        else if (label === 'Good' || label === 'Fair') color = 'var(--warning)';
+
+        strengthText.textContent = label;
         strengthFill.style.background = color;
     });
 }
@@ -3566,10 +3525,10 @@ function updateBookingSummary() {
     
     const duration = parseInt(document.getElementById('booking-duration').value);
     const slotPrice = appState.selectedSlot.price;
-    const subtotal = duration * slotPrice;
-    const serviceFee = 0.50;
-    const tax = subtotal * 0.10;
-    const total = subtotal + serviceFee + tax;
+    // Pricing math now lives in pricing.js (calculateBookingCost) so it can
+    // be unit-tested without a DOM — this used to be duplicated inline here
+    // and again in the second booking-summary function below.
+    const { subtotal, serviceFee, tax, total } = calculateBookingCost(duration, slotPrice);
     
     // CHANGED: Update date in summary
     const currentDate = getCurrentDateFormatted();
@@ -3687,10 +3646,7 @@ function createBooking() {
     const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
     
     const slotPrice = appState.selectedSlot.price;
-    const subtotal = duration * slotPrice;
-    const serviceFee = 0.50;
-    const tax = subtotal * 0.10;
-    const total = subtotal + serviceFee + tax;
+    const { subtotal, serviceFee, tax, total } = calculateBookingCost(duration, slotPrice);
     
     const startTime = new Date(`${formattedDate}T${time}`);
     const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
@@ -3755,32 +3711,10 @@ function createPayment(booking) {
 //                         came through the regular booking flow
 //   - AVAILABLE (green): nothing relevant — no booking touches this slot
 function computeAuthoritativeSlotStatus(floor, slotId) {
-    const relevantBookings = appState.bookings.filter(
-        b => b.status === 'confirmed' && b.floor === floor && b.slotId === slotId
-    );
-    
-    if (relevantBookings.length === 0) return 'available';
-    
-    const now = Date.now();
-    
-    const isActiveNow = relevantBookings.some(b => {
-        const start = new Date(b.startTime).getTime();
-        const end = new Date(b.endTime).getTime();
-        return isFinite(start) && isFinite(end) && now >= start && now <= end;
-    });
-    if (isActiveNow) return 'occupied';
-    
-    const upcoming = relevantBookings
-        .filter(b => {
-            const start = new Date(b.startTime).getTime();
-            const end = new Date(b.endTime).getTime();
-            return isFinite(start) && isFinite(end) && now < start && now <= end;
-        })
-        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-    
-    if (upcoming.length === 0) return 'available';
-    
-    return upcoming[0].isAdvanceBooking ? 'reserved' : 'booked';
+    // Logic now lives in slotStatus.js (loaded before this file) so it can
+    // be unit-tested without a DOM or live appState. This is a thin
+    // wrapper that supplies the real global state the pure function needs.
+    return computeAuthoritativeSlotStatusPure(floor, slotId, appState.bookings, Date.now());
 }
 
 // Sweeps EVERY slot on every floor (not just ones that currently have a
