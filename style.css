@@ -1030,10 +1030,18 @@ a:hover {
     margin-top: 2rem;
 }
 
+.floor-tabs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
 .floor-tabs {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 2rem;
 }
 
 .floor-tab {
@@ -1064,7 +1072,6 @@ a:hover {
     background: var(--bg-secondary);
     border-radius: var(--radius);
     padding: 0.85rem 1.25rem;
-    margin-bottom: 1rem;
     width: fit-content;
     max-width: 100%;
 }
