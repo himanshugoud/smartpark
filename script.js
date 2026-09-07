@@ -27,7 +27,12 @@ let appState = {
         notifications: ['email', 'sms']
     },
     advanceBooking: null,
-    planDetails: null
+    planDetails: null,
+    gridFilter: {
+        search: '',
+        type: 'all',
+        availableOnly: false
+    }
 };
 
 // ========================
@@ -254,6 +259,7 @@ function initializeApp() {
     setupSatisfactionRating();
     setupPasswordStrength();
     setupParkingEventDelegation();
+    setupGridFilters();
     setupQuickActions();
     setupEnhancedFeatures();
     
@@ -1063,11 +1069,97 @@ function renderParkingMap() {
             slotElement.appendChild(wheelchairIcon);
         }
         
+        // Search/filter bar: slots that don't match the current search
+        // text, type filter, or "available only" toggle stay in the grid
+        // (so the layout doesn't jump around) but get dimmed out and made
+        // unclickable via the .filtered-out class, styled in style.css.
+        const filter = appState.gridFilter;
+        let matchesFilter = true;
+        if (filter.search) {
+            matchesFilter = slot.id.toLowerCase().includes(filter.search.toLowerCase());
+        }
+        if (matchesFilter && filter.type !== 'all') {
+            matchesFilter = slot.type === filter.type;
+        }
+        if (matchesFilter && filter.availableOnly) {
+            matchesFilter = displayStatus === 'available';
+        }
+        if (!matchesFilter) {
+            slotElement.classList.add('filtered-out');
+        }
+
         floorMap.appendChild(slotElement);
     });
     
     addParkingMarkers(floorMap);
     updateFloorStatistics();
+    updateGridFilterResultCount();
+}
+
+// Counts how many slots on the current floor match the active search/filter
+// and shows it next to the filter bar, e.g. "4 of 30 slots match". Hidden
+// entirely when no filter is active so it doesn't clutter the default view.
+function updateGridFilterResultCount() {
+    const countEl = document.getElementById('grid-filter-result-count');
+    if (!countEl) return;
+
+    const filter = appState.gridFilter;
+    const filterActive = filter.search || filter.type !== 'all' || filter.availableOnly;
+
+    if (!filterActive) {
+        countEl.textContent = '';
+        return;
+    }
+
+    const floorMap = document.getElementById('floor-map');
+    const total = floorMap ? floorMap.querySelectorAll('.parking-slot-map').length : 0;
+    const matching = floorMap ? floorMap.querySelectorAll('.parking-slot-map:not(.filtered-out)').length : 0;
+
+    countEl.textContent = matching === 0
+        ? 'No slots match'
+        : `${matching} of ${total} slots match`;
+}
+
+// Wires up the search input, type dropdown, and "available only" checkbox.
+// All three just update appState.gridFilter and re-render — renderParkingMap
+// already re-runs on every live Firebase update, so the filter stays applied
+// automatically as slot statuses change in real time.
+function setupGridFilters() {
+    const searchInput = document.getElementById('slot-search-input');
+    const clearBtn = document.getElementById('slot-search-clear');
+    const typeFilter = document.getElementById('slot-type-filter');
+    const availableOnlyFilter = document.getElementById('available-only-filter');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            appState.gridFilter.search = searchInput.value.trim();
+            if (clearBtn) clearBtn.hidden = appState.gridFilter.search.length === 0;
+            renderParkingMap();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            appState.gridFilter.search = '';
+            if (searchInput) searchInput.value = '';
+            clearBtn.hidden = true;
+            renderParkingMap();
+        });
+    }
+
+    if (typeFilter) {
+        typeFilter.addEventListener('change', () => {
+            appState.gridFilter.type = typeFilter.value;
+            renderParkingMap();
+        });
+    }
+
+    if (availableOnlyFilter) {
+        availableOnlyFilter.addEventListener('change', () => {
+            appState.gridFilter.availableOnly = availableOnlyFilter.checked;
+            renderParkingMap();
+        });
+    }
 }
 
 function setupParkingEventDelegation() {
@@ -1076,7 +1168,7 @@ function setupParkingEventDelegation() {
     
     floorMap.addEventListener('click', (e) => {
         const slotElement = e.target.closest('.parking-slot-map');
-        if (slotElement) {
+        if (slotElement && !slotElement.classList.contains('filtered-out')) {
             const slotId = slotElement.dataset.slotId;
             const floor = slotElement.dataset.floor;
             const slot = appState.parkingData[floor].find(s => s.id === slotId);

@@ -1055,6 +1055,112 @@ a:hover {
     color: white;
 }
 
+/* Grid search/filter bar */
+.grid-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.grid-filter-search {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1 1 220px;
+    min-width: 180px;
+    background: var(--bg-primary);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.85rem;
+    transition: var(--transition);
+}
+
+.grid-filter-search:focus-within {
+    border-color: var(--primary);
+}
+
+.grid-filter-search i {
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+}
+
+.grid-filter-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.slot-search-clear {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0.15rem;
+    display: flex;
+    align-items: center;
+}
+
+.slot-search-clear:hover {
+    color: var(--text-primary);
+}
+
+.grid-filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+#slot-type-filter {
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.grid-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.grid-filter-toggle input {
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.grid-filter-result-count {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* Slots that don't match the active search/filter stay in place (so the
+   grid doesn't reflow) but are dimmed and disabled. */
+.parking-slot-map.filtered-out {
+    opacity: 0.25;
+    filter: grayscale(60%);
+    cursor: default;
+    pointer-events: none;
+}
+
 .floor-content {
     display: grid;
     grid-template-columns: 2fr 1fr;
