@@ -1071,8 +1071,9 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    flex: 1 1 220px;
-    min-width: 180px;
+    flex: 0 1 260px;
+    min-width: 160px;
+    max-width: 260px;
     background: var(--bg-primary);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius);
@@ -1107,6 +1108,10 @@ a:hover {
     padding: 0.15rem;
     display: flex;
     align-items: center;
+}
+
+.slot-search-clear[hidden] {
+    display: none;
 }
 
 .slot-search-clear:hover {
