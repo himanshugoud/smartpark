@@ -1100,6 +1100,11 @@ a:hover {
     min-width: 0;
 }
 
+.grid-filter-search input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
 .slot-search-clear {
     background: none;
     border: none;
@@ -1153,8 +1158,8 @@ a:hover {
 .grid-filter-result-count {
     font-size: 0.8rem;
     color: var(--text-tertiary);
-    margin-left: auto;
-    white-space: nowrap;
+    flex-basis: 100%;
+    order: 3;
 }
 
 /* Slots that don't match the active search/filter stay in place (so the
