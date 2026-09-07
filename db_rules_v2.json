@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "parking": {
+      "$floor": {
+        ".read": true,
+        "$slotId": {
+          ".write": "auth != null && newData.hasChildren(['status', 'statusUpdatedAt']) && newData.child('status').isString() && newData.child('statusUpdatedAt').isNumber()",
+          "status": {
+            ".validate": "newData.val() == 'available' || newData.val() == 'booked' || newData.val() == 'occupied' || newData.val() == 'reserved' || newData.val() == 'handicap'"
+          },
+          "statusUpdatedAt": {
+            ".validate": "newData.val() <= now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "meta": {
+      ".read": true,
+      ".write": false
+    }
+  }
+}

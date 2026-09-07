@@ -35,7 +35,9 @@ A few things that went into this beyond a basic CRUD app:
 - **Real-time sync across every connected client** — slot status writes to Firebase Realtime Database and pushes to every open browser tab instantly, with no polling.
 - **Found and fixed a real session-isolation bug** — bookings were leaking across accounts after logout/login because a shared, unfiltered array was overwriting the correctly-scoped per-user data on every page load. Traced it to two separate spots (`initializeApp()` and `logout()`) and fixed both, rather than patching the symptom.
 - **Load-tested the database, not just assumed it'd hold up** — wrote a small script that fires 50 concurrent writes at the live database and measures round-trip latency; 100% success rate, zero write conflicts.
-- **Write-validated security rules** — rather than requiring login for every write (which would've broken the custom email/password flow), the database rules validate the *shape* of every write instead: only real slot-status updates with the correct fields are accepted, so the app works for every user exactly as before while random garbage/wipe attempts are rejected.
+- **Write-validated security rules** — rather than requiring login for every write (which would've broken the custom email/password flow at the time), the database rules validate the *shape* of every write instead: only real slot-status updates with the correct fields are accepted, so the app works for every user exactly as before while random garbage/wipe attempts are rejected.
+- **Migrated email/password auth to real Firebase Authentication** — accounts used to be validated against a custom, plaintext `localStorage` array. Rebuilt signup/login/logout/password-reset on real Firebase Auth, added `setPersistence` so "Remember me" has an actual effect (session vs. local persistence) instead of doing nothing, and — since every user is now a real authenticated account — tightened the database write rules to require `auth != null`, closing the gap the write-validation rules above were originally a workaround for.
+- **45 automated unit tests** covering booking-cost math, slot-status transitions, and form validation — the pricing/validation/slot-status logic was deliberately extracted out of DOM-heavy `script.js` into standalone, dependency-free modules specifically so it could be tested in isolation. Runs automatically on every push via GitHub Actions.
 - **Debugged a subtle DOM-timing bug** — the profile avatar looked blank after a refresh because the code was generating the fallback avatar image before the `<img>` element was actually attached to the page, so `document.getElementById` silently found nothing. Fixed by reordering initialization instead of adding a workaround.
 
 ## Features
@@ -100,7 +102,7 @@ Tests run automatically on every push via GitHub Actions (see the badge at the t
 The live demo doesn't require signing up — click **"Try Demo Login"** on the login screen, or use these credentials directly:
 
 - **Email:** `demo@smartpark.com`
-- **Password:** `demo123`
+- **Password:** `Demo@1234`
 
 This is a seeded demo account for evaluation purposes — no real personal data.
 
@@ -114,7 +116,7 @@ This is a seeded demo account for evaluation purposes — no real personal data.
 
 > **Note:** live features (Google Sign-In, real-time slot sync) require a connected Firebase project. The `firebase-config.js` in this repo is pre-wired to a live Firebase backend for demo purposes.
 
-> **Known limitation:** email/password accounts are validated against a custom `localStorage`-based system, not real Firebase Authentication — only the Google Sign-In path is backed by actual Firebase Auth. Migrating email/password to Firebase Auth as well is the natural next step for production use.
+> **Note:** every account — email/password or Google — is a real Firebase Authentication user. Password reset sends a real email via Firebase's built-in flow, no custom backend required.
 
 ## License
 

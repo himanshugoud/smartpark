@@ -225,33 +225,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
-    const savedUser = localStorage.getItem('smartpark_user');
-    if (savedUser) {
-        try {
-            appState.currentUser = JSON.parse(savedUser);
-            appState.isLoggedIn = true;
-            updateUserUI();
-            loadUserData();
-        } catch (e) {
-            console.error('Error loading user data:', e);
-            localStorage.removeItem('smartpark_user');
-        }
-    }
-    
     try {
         const savedSettings = localStorage.getItem('smartpark_settings');
         if (savedSettings) appState.userSettings = JSON.parse(savedSettings);
-
-        // NOTE: 'smartpark_bookings' / 'smartpark_payments' in localStorage hold
-        // EVERY user's bookings/payments in one shared array. They must only be
-        // loaded through loadUserData(), which filters by appState.currentUser.id.
-        // Loading them directly here (as before) overwrote that filtering and
-        // leaked every account's bookings into whichever account/guest was
-        // currently viewing the page. Guests (not logged in) should see none.
-        if (!appState.isLoggedIn) {
-            appState.bookings = [];
-            appState.payments = [];
-        }
+        appState.bookings = [];
+        appState.payments = [];
     } catch (e) {
         console.error('Error loading data:', e);
     }
@@ -303,6 +281,54 @@ function initializeApp() {
         setupEnhancedFeatures();
         setupHorizontalQuickActions(); // This line was added
     }, 100);
+
+    // Real Firebase Auth session restoration, replacing the old
+    // localStorage('smartpark_user') check. Firebase persists sessions
+    // itself (respecting the Remember Me choice made at login — see
+    // setPersistence in handleLogin), so there's nothing to manually read
+    // from localStorage anymore. This resolves asynchronously — for a
+    // brief moment on page load the UI shows as a guest before Firebase
+    // confirms an existing session, which is normal for client-side
+    // Firebase Auth and not something worth adding a loading spinner for
+    // at this project's scale.
+    function watchAuthState() {
+        const { auth, onAuthStateChanged, db, ref, get } = window.SmartParkFirebase;
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                get(ref(db, `users/${user.uid}`))
+                    .then((snapshot) => {
+                        const profile = snapshot.exists() ? snapshot.val() : {};
+                        appState.currentUser = {
+                            id: user.uid,
+                            email: user.email,
+                            name: user.displayName || profile.name || (user.email ? user.email.split('@')[0] : 'User'),
+                            phone: profile.phone || ''
+                        };
+                        appState.isLoggedIn = true;
+                        updateUserUI();
+                        loadUserData();
+                        renderParkingMap();
+                        updateFloorStatistics();
+                        if (window.location.hash.includes('dashboard')) updateDashboard();
+                    })
+                    .catch((err) => console.error('Error loading user profile:', err));
+            } else {
+                appState.currentUser = null;
+                appState.isLoggedIn = false;
+                appState.bookings = [];
+                appState.payments = [];
+                updateUserUI();
+                renderParkingMap();
+                updateFloorStatistics();
+            }
+        });
+    }
+
+    if (window.SmartParkFirebase && window.SmartParkFirebase.onAuthStateChanged) {
+        watchAuthState();
+    } else {
+        document.addEventListener('firebase:ready', watchAuthState, { once: true });
+    }
 }
 
 // ========================
@@ -1697,13 +1723,7 @@ function setupAuthentication() {
         forgotPasswordLink.addEventListener('click', function(e) {
             e.preventDefault();
             closeModal();
-            // Always start this modal on step 1, even if it was left on
-            // the "set new password" step from a previous, abandoned
-            // attempt (e.g. the person closed it partway through).
-            document.getElementById('forgot-password-form').style.display = 'block';
-            document.getElementById('reset-password-form').style.display = 'none';
             document.getElementById('forgot-password-form').reset();
-            document.getElementById('reset-password-form').reset();
             openModal('forgot-password-modal');
         });
     }
@@ -1752,11 +1772,6 @@ function setupAuthentication() {
     if (forgotPasswordForm) {
         forgotPasswordForm.addEventListener('submit', handleForgotPassword);
     }
-
-    const resetPasswordForm = document.getElementById('reset-password-form');
-    if (resetPasswordForm) {
-        resetPasswordForm.addEventListener('submit', handleSetNewPassword);
-    }
     
     const googleAuth = document.getElementById('google-auth');
     if (googleAuth) {
@@ -1771,7 +1786,7 @@ function setupAuthentication() {
     if (demoLoginBtn) {
         demoLoginBtn.addEventListener('click', function() {
             document.getElementById('login-email').value = 'demo@smartpark.com';
-            document.getElementById('login-password').value = 'demo123';
+            document.getElementById('login-password').value = 'Demo@1234';
             handleLogin({ preventDefault: () => {}, target: loginForm });
         });
     }
@@ -3078,6 +3093,15 @@ function handleLogin(e) {
         showToast('Please enter a valid email address', 'error');
         return;
     }
+
+    if (!window.SmartParkFirebase || !window.SmartParkFirebase.auth) {
+        showToast('Login is not available right now', 'error');
+        return;
+    }
+    const {
+        auth, signInWithEmailAndPassword, db, ref, get,
+        setPersistence, browserLocalPersistence, browserSessionPersistence
+    } = window.SmartParkFirebase;
     
     const submitBtn = document.getElementById('login-submit');
     const btnText = submitBtn.querySelector('.btn-text');
@@ -3085,64 +3109,56 @@ function handleLogin(e) {
     
     btnText.style.display = 'none';
     btnLoader.style.display = 'block';
-    
-    setTimeout(() => {
-        // Demo/test accounts always work, for quick testing...
-        const mockUsers = [
-            { email: 'demo@smartpark.com', password: 'demo123', name: 'Demo User', phone: '' },
-            { email: 'test@smartpark.com', password: 'test123', name: 'Test User', phone: '' }
-        ];
-        
-        // ...but the app never actually checked real accounts created via
-        // Sign Up. Every signup WAS being saved to 'smartpark_users', but
-        // login only ever compared against these two hardcoded demo
-        // accounts — so a real registered email/password combination could
-        // never log in. Now checked against both, real accounts first.
-        const registeredUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
-        
-        const matchedRegistered = registeredUsers.find(u => u.email === email && u.password === password);
-        const matchedMock = mockUsers.find(u => u.email === email && u.password === password);
-        const user = matchedRegistered || matchedMock;
-        
-        if (user) {
+
+    // "Remember me" now genuinely controls session length via Firebase's
+    // own persistence setting, rather than just gating whether anything
+    // gets saved at all (the old, confusing behavior this app used to
+    // have). Checked = stays signed in after closing the browser; unchecked
+    // = signed out once the browser session ends.
+    setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence)
+        .then(() => signInWithEmailAndPassword(auth, email, password))
+        .then((credential) => {
+            const user = credential.user;
+            return get(ref(db, `users/${user.uid}`)).then((snapshot) => {
+                const profile = snapshot.exists() ? snapshot.val() : {};
+                return { user, profile };
+            });
+        })
+        .then(({ user, profile }) => {
             appState.currentUser = {
-                id: user.id || `user_${Date.now()}`,
+                id: user.uid,
                 email: user.email,
-                name: user.name,
-                phone: user.phone || ''
+                name: user.displayName || profile.name || (user.email ? user.email.split('@')[0] : 'User'),
+                phone: profile.phone || ''
             };
             appState.isLoggedIn = true;
             
-            // Persist the session unconditionally, same as Signup and Google
-            // Login already do. Previously this only ran `if (remember)`,
-            // so logging in without ticking "Remember Me" saved nothing to
-            // localStorage — the very next refresh found no saved session
-            // and silently fell back to guest, looking like an automatic
-            // logout. "Remember me" no longer gates whether you stay logged
-            // in at all; it's just not wired to anything else right now.
-            localStorage.setItem('smartpark_user', JSON.stringify(appState.currentUser));
-            
             updateUserUI();
             loadUserData();
-            // loadUserData() only refreshes the Dashboard tab — the parking
-            // grid was rendered earlier (before login, with no bookings) and
-            // is never redrawn on its own, so without this the just-loaded
-            // slot stays the wrong color until the next unrelated re-render
-            // (floor switch, live-update tick, or a full page refresh).
             renderParkingMap();
             updateFloorStatistics();
             
             closeModal();
-            showToast(`Welcome back, ${user.name}!`, 'success');
-            
+            showToast(`Welcome back, ${appState.currentUser.name}!`, 'success');
             e.target.reset();
-        } else {
-            showToast('Invalid email or password', 'error');
-        }
-        
-        btnText.style.display = 'block';
-        btnLoader.style.display = 'none';
-    }, 1500);
+        })
+        .catch((error) => {
+            console.error('Login error:', error);
+            // Newer Firebase Auth SDKs return 'auth/invalid-credential' for
+            // both "no such user" and "wrong password" (to avoid leaking
+            // which one it was), but older behavior/codes are handled too.
+            if (['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential'].includes(error.code)) {
+                showToast('Invalid email or password', 'error');
+            } else if (error.code === 'auth/too-many-requests') {
+                showToast('Too many attempts — please try again later', 'error');
+            } else {
+                showToast('Login failed. Please try again.', 'error');
+            }
+        })
+        .finally(() => {
+            btnText.style.display = 'block';
+            btnLoader.style.display = 'none';
+        });
 }
 
 // Real Google Sign-In via Firebase Authentication (the same Firebase
@@ -3157,9 +3173,13 @@ function handleGoogleLogin() {
         return;
     }
     
-    const { auth, googleProvider, signInWithPopup } = window.SmartParkFirebase;
+    const {
+        auth, googleProvider, signInWithPopup, db, ref, set,
+        setPersistence, browserLocalPersistence
+    } = window.SmartParkFirebase;
     
-    signInWithPopup(auth, googleProvider)
+    setPersistence(auth, browserLocalPersistence)
+        .then(() => signInWithPopup(auth, googleProvider))
         .then((result) => {
             const googleUser = result.user;
             
@@ -3170,8 +3190,16 @@ function handleGoogleLogin() {
                 phone: googleUser.phoneNumber || ''
             };
             appState.isLoggedIn = true;
-            
-            localStorage.setItem('smartpark_user', JSON.stringify(appState.currentUser));
+
+            // Keep a users/{uid} record for Google accounts too, same as
+            // email/password signups, so both auth methods leave a
+            // consistent profile record in the database.
+            set(ref(db, `users/${googleUser.uid}`), {
+                name: appState.currentUser.name,
+                email: appState.currentUser.email,
+                phone: appState.currentUser.phone,
+                createdAt: new Date().toISOString()
+            }).catch((err) => console.error('Error saving Google user profile:', err));
             
             updateUserUI();
             loadUserData();
@@ -3232,6 +3260,12 @@ function handleSignup(e) {
         showToast('Please agree to the terms and conditions', 'error');
         return;
     }
+
+    if (!window.SmartParkFirebase || !window.SmartParkFirebase.auth) {
+        showToast('Sign up is not available right now', 'error');
+        return;
+    }
+    const { auth, createUserWithEmailAndPassword, updateProfile, db, ref, set } = window.SmartParkFirebase;
     
     const submitBtn = document.getElementById('signup-submit');
     const btnText = submitBtn.querySelector('.btn-text');
@@ -3239,60 +3273,56 @@ function handleSignup(e) {
     
     btnText.style.display = 'none';
     btnLoader.style.display = 'block';
-    
-    setTimeout(() => {
-        const existingUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
-        if (existingUsers.some(u => u.email === email)) {
-            showToast('An account with this email already exists', 'error');
+
+    // Real Firebase Authentication account, replacing the old
+    // localStorage-only 'smartpark_users' array. Firebase Auth doesn't
+    // have a phone field for email/password accounts, so phone (and a
+    // copy of name/email, for convenience) is stored separately in the
+    // Realtime Database under users/{uid}.
+    createUserWithEmailAndPassword(auth, email, password)
+        .then((credential) => updateProfile(credential.user, { displayName: name }).then(() => credential.user))
+        .then((user) => {
+            return set(ref(db, `users/${user.uid}`), {
+                name, email, phone, createdAt: new Date().toISOString()
+            }).then(() => user);
+        })
+        .then((user) => {
+            appState.currentUser = { id: user.uid, name, email, phone };
+            appState.isLoggedIn = true;
+
+            appState.userSettings = {
+                name, email, phone,
+                defaultVehicle: '',
+                vehicleType: 'car',
+                notifications: ['email', 'sms']
+            };
+            localStorage.setItem('smartpark_settings', JSON.stringify(appState.userSettings));
+
+            updateUserUI();
+            loadUserData();
+            renderParkingMap();
+            updateFloorStatistics();
+
+            closeModal();
+            showToast(`Account created successfully! Welcome, ${name}!`, 'success');
+            e.target.reset();
+        })
+        .catch((error) => {
+            console.error('Signup error:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                showToast('An account with this email already exists', 'error');
+            } else if (error.code === 'auth/weak-password') {
+                showToast('Password is too weak — please choose a stronger one', 'error');
+            } else if (error.code === 'auth/invalid-email') {
+                showToast('Please enter a valid email address', 'error');
+            } else {
+                showToast('Could not create account. Please try again.', 'error');
+            }
+        })
+        .finally(() => {
             btnText.style.display = 'block';
             btnLoader.style.display = 'none';
-            return;
-        }
-        
-        const newUser = {
-            id: `user_${Date.now()}`,
-            name: name,
-            email: email,
-            phone: phone,
-            password: password,
-            createdAt: new Date().toISOString()
-        };
-        
-        existingUsers.push(newUser);
-        localStorage.setItem('smartpark_users', JSON.stringify(existingUsers));
-        
-        // Keep the password out of the session/profile object — it only
-        // needs to live in the registered-users list (used for login
-        // checks), not in appState.currentUser or the smartpark_user
-        // localStorage key (used for display/profile purposes).
-        const sessionUser = { id: newUser.id, name: newUser.name, email: newUser.email, phone: newUser.phone };
-        appState.currentUser = sessionUser;
-        appState.isLoggedIn = true;
-        localStorage.setItem('smartpark_user', JSON.stringify(sessionUser));
-        
-        appState.userSettings = {
-            name: name,
-            email: email,
-            phone: phone,
-            defaultVehicle: '',
-            vehicleType: 'car',
-            notifications: ['email', 'sms']
-        };
-        localStorage.setItem('smartpark_settings', JSON.stringify(appState.userSettings));
-        
-        updateUserUI();
-        loadUserData();
-        renderParkingMap();
-        updateFloorStatistics();
-        
-        closeModal();
-        showToast(`Account created successfully! Welcome, ${name}!`, 'success');
-        
-        e.target.reset();
-        
-        btnText.style.display = 'block';
-        btnLoader.style.display = 'none';
-    }, 1500);
+        });
 }
 
 function handleForgotPassword(e) {
@@ -3305,63 +3335,37 @@ function handleForgotPassword(e) {
         return;
     }
 
-    // This app has no backend/email service to send a real reset link
-    // through (only Google Sign-In users are backed by real Firebase
-    // Auth — email/password accounts live only in this browser's
-    // localStorage). Previously this just showed a fake "email sent"
-    // toast that went nowhere. Since we already fully control this
-    // local account store, it's more honest to verify the account
-    // exists and let the person set a new password directly here,
-    // rather than pretend an email was sent.
-    const registeredUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
-    const matchedUser = registeredUsers.find(u => u.email === email);
-
-    if (!matchedUser) {
-        showToast('No account found with that email. Demo accounts (demo@smartpark.com) cannot be reset.', 'error');
+    if (!window.SmartParkFirebase || !window.SmartParkFirebase.auth) {
+        showToast('Password reset is not available right now', 'error');
         return;
     }
+    const { auth, sendPasswordResetEmail } = window.SmartParkFirebase;
 
-    document.getElementById('reset-password-email-display').textContent = email;
-    document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('reset-password-form').style.display = 'block';
-}
-
-function handleSetNewPassword(e) {
-    e.preventDefault();
-
-    const email = document.getElementById('reset-email').value.trim();
-    const newPassword = document.getElementById('new-reset-password').value.trim();
-    const confirmPassword = document.getElementById('confirm-reset-password').value.trim();
-
-    if (newPassword.length < 6) {
-        showToast('Password must be at least 6 characters', 'error');
-        return;
-    }
-
-    if (newPassword !== confirmPassword) {
-        showToast('Passwords do not match', 'error');
-        return;
-    }
-
-    const registeredUsers = JSON.parse(localStorage.getItem('smartpark_users') || '[]');
-    const userIndex = registeredUsers.findIndex(u => u.email === email);
-
-    if (userIndex === -1) {
-        showToast('Something went wrong — please start over', 'error');
-        return;
-    }
-
-    registeredUsers[userIndex].password = newPassword;
-    localStorage.setItem('smartpark_users', JSON.stringify(registeredUsers));
-
-    showToast('Password updated — you can now sign in with your new password', 'success');
-    closeModal();
-    e.target.reset();
-
-    // Reset the modal back to its first step for next time it's opened.
-    document.getElementById('forgot-password-form').style.display = 'block';
-    document.getElementById('reset-password-form').style.display = 'none';
-    document.getElementById('reset-password-form').reset();
+    // Real Firebase Authentication handles sending this email itself —
+    // no backend or email API key needed. Replaces the earlier in-app
+    // "verify email, then set a new password directly here" workaround,
+    // which only existed because email/password accounts weren't real
+    // Firebase Auth users yet and there was no way to actually deliver
+    // an email.
+    sendPasswordResetEmail(auth, email)
+        .then(() => {
+            showToast(`Password reset email sent to ${email} — check your inbox`, 'success');
+            closeModal();
+            e.target.reset();
+        })
+        .catch((error) => {
+            console.error('Password reset error:', error);
+            // Deliberately vague on "user not found" — confirming whether an
+            // email has an account is a minor account-enumeration leak, and
+            // Firebase's own hosted reset flow follows the same convention.
+            if (error.code === 'auth/invalid-email') {
+                showToast('Please enter a valid email address', 'error');
+            } else {
+                showToast('If an account exists for that email, a reset link has been sent.', 'success');
+                closeModal();
+                e.target.reset();
+            }
+        });
 }
 
 // ========================
@@ -4251,6 +4255,11 @@ function loadUserData() {
 }
 
 function logout() {
+    if (window.SmartParkFirebase && window.SmartParkFirebase.auth && window.SmartParkFirebase.signOut) {
+        window.SmartParkFirebase.signOut(window.SmartParkFirebase.auth)
+            .catch((err) => console.error('Firebase sign-out error:', err));
+    }
+
     appState.currentUser = null;
     appState.isLoggedIn = false;
     appState.userSettings = {
@@ -4270,7 +4279,10 @@ function logout() {
     // (and would even carry over into whichever account logs in next).
     appState.bookings = [];
     appState.payments = [];
-    localStorage.removeItem('smartpark_user');
+    // 'smartpark_user' is no longer used — Firebase Auth now owns session
+    // persistence entirely (see setPersistence in handleLogin/handleGoogleLogin
+    // and the onAuthStateChanged listener in initializeApp). Only the
+    // non-auth settings cache still lives in localStorage.
     localStorage.removeItem('smartpark_settings');
     
     // Update profile image to default

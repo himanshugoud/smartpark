@@ -26,7 +26,16 @@ import {
 import {
     getAuth,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    sendPasswordResetEmail,
+    updateProfile,
+    onAuthStateChanged,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
@@ -45,7 +54,16 @@ window.SmartParkFirebase = {
     get,
     auth,
     googleProvider,
-    signInWithPopup
+    signInWithPopup,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    sendPasswordResetEmail,
+    updateProfile,
+    onAuthStateChanged,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence
 };
 
 // Let script.js know Firebase is ready, since module scripts execute
