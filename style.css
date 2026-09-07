@@ -1057,7 +1057,7 @@ a:hover {
 
 /* Grid search/filter bar */
 .grid-filter-bar {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 1rem;
@@ -1065,6 +1065,8 @@ a:hover {
     border-radius: var(--radius);
     padding: 0.85rem 1.25rem;
     margin-bottom: 1.5rem;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .grid-filter-search {
@@ -1138,6 +1140,16 @@ a:hover {
     color: var(--text-primary);
     font-size: 0.85rem;
     cursor: pointer;
+}
+
+#slot-type-filter:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.grid-filter-toggle input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--primary-light);
 }
 
 .grid-filter-toggle {
