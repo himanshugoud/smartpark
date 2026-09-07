@@ -1129,7 +1129,8 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
 }
 
 #slot-type-filter {
@@ -1140,6 +1141,7 @@ a:hover {
     color: var(--text-primary);
     font-size: 0.85rem;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 #slot-type-filter:focus {
@@ -1160,6 +1162,8 @@ a:hover {
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .grid-filter-toggle input {
