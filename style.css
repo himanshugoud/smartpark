@@ -1058,13 +1058,13 @@ a:hover {
 /* Grid search/filter bar */
 .grid-filter-bar {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 1rem;
     background: var(--bg-secondary);
     border-radius: var(--radius);
     padding: 0.85rem 1.25rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     width: fit-content;
     max-width: 100%;
 }
@@ -1170,8 +1170,11 @@ a:hover {
 .grid-filter-result-count {
     font-size: 0.8rem;
     color: var(--text-tertiary);
-    flex-basis: 100%;
-    order: 3;
+    margin-bottom: 1rem;
+}
+
+.grid-filter-result-count:empty {
+    display: none;
 }
 
 /* Slots that don't match the active search/filter stay in place (so the
