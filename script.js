@@ -3717,6 +3717,7 @@ function handlePayment() {
         hideLoading();
         closeModal();
         showPaymentSuccess(booking, payment);
+        sendBookingConfirmationEmail(booking, payment);
         
         resetBookingForm();
         appState.advanceBooking = null;
@@ -3791,6 +3792,50 @@ function createPayment(booking) {
         userId: appState.currentUser.id,
         planType: appState.selectedPlan
     };
+}
+
+// Sends a booking confirmation email via EmailJS (client-side, no backend
+// or Firebase Blaze plan needed — see emailjs-config.js). This is a
+// best-effort notification, not a critical part of the booking flow: if
+// EmailJS isn't configured yet, or the send fails (network issue, wrong
+// keys, free-tier limit hit), we log it and move on rather than showing
+// an error or blocking the booking, since the booking itself already
+// succeeded and is saved regardless of whether this email goes out.
+function sendBookingConfirmationEmail(booking, payment) {
+    if (typeof emailjs === 'undefined') {
+        console.warn('EmailJS SDK not loaded — skipping booking confirmation email.');
+        return;
+    }
+
+    const { publicKey, serviceId, templateId } = (typeof EMAILJS_CONFIG !== 'undefined') ? EMAILJS_CONFIG : {};
+    if (!serviceId || !templateId || serviceId.includes('YOUR_') || templateId.includes('YOUR_')) {
+        console.info('EmailJS not configured yet (see emailjs-config.js) — skipping booking confirmation email.');
+        return;
+    }
+
+    if (!appState.currentUser || !appState.currentUser.email) {
+        console.warn('No user email on file — skipping booking confirmation email.');
+        return;
+    }
+
+    const floorNames = { ground: 'Ground Floor', first: 'First Floor', second: 'Second Floor' };
+
+    const templateParams = {
+        to_email: appState.currentUser.email,
+        to_name: appState.currentUser.name || 'SmartPark User',
+        booking_id: booking.id,
+        slot_id: booking.slotId,
+        floor: floorNames[booking.floor] || booking.floor,
+        date: booking.date,
+        start_time: new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        duration: `${booking.duration} hour${booking.duration === 1 ? '' : 's'}`,
+        amount: `$${payment.amount.toFixed(2)}`,
+        payment_method: payment.method
+    };
+
+    emailjs.send(serviceId, templateId, templateParams)
+        .then(() => console.log('Booking confirmation email sent.'))
+        .catch((error) => console.warn('Booking confirmation email failed to send:', error));
 }
 
 // A single slot can have MULTIPLE confirmed bookings for different,
