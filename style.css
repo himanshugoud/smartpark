@@ -1068,8 +1068,10 @@ a:hover {
     display: inline-flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 1rem;
-    background: transparent;
+    gap: 0.85rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.75rem;
     width: fit-content;
     max-width: 100%;
 }
@@ -1078,18 +1080,18 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    flex: 0 1 260px;
-    min-width: 160px;
-    max-width: 260px;
-    background: var(--gray-100);
-    border: none;
+    flex: 0 1 240px;
+    min-width: 150px;
+    max-width: 240px;
+    background: var(--bg-primary);
+    border: 1px solid var(--gray-200);
     border-radius: var(--radius);
-    padding: 0.75rem 1.25rem;
+    padding: 0.4rem 0.85rem;
     transition: var(--transition);
 }
 
 .grid-filter-search:focus-within {
-    box-shadow: 0 0 0 2px var(--primary);
+    border-color: var(--primary);
 }
 
 .grid-filter-search i {
@@ -1139,10 +1141,10 @@ a:hover {
 }
 
 #slot-type-filter {
-    padding: 0.75rem 1.25rem;
+    padding: 0.4rem 0.85rem;
     border-radius: var(--radius);
-    border: none;
-    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    background: var(--bg-primary);
     color: var(--text-primary);
     font-size: 0.85rem;
     cursor: pointer;
@@ -1151,7 +1153,7 @@ a:hover {
 
 #slot-type-filter:focus {
     outline: none;
-    box-shadow: 0 0 0 2px var(--primary);
+    border-color: var(--primary);
 }
 
 .grid-filter-toggle input:focus {
@@ -1169,9 +1171,6 @@ a:hover {
     user-select: none;
     white-space: nowrap;
     flex-shrink: 0;
-    background: var(--gray-100);
-    border-radius: var(--radius);
-    padding: 0.75rem 1.25rem;
 }
 
 .grid-filter-toggle input {
