@@ -1069,9 +1069,20 @@ a:hover {
     flex-wrap: nowrap;
     align-items: center;
     gap: 0.75rem;
-    background: transparent;
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.75rem;
     width: fit-content;
     max-width: 100%;
+}
+
+/* In dark mode the individual search/dropdown boxes (--bg-input) are the
+   same shade as --gray-100, so a wrapping bar in that color would blend
+   invisibly into them (the exact bug reported earlier). Dark mode already
+   reads clearly with just the two individual boxes, so skip the wrapper. */
+[data-theme="dark"] .grid-filter-bar {
+    background: transparent;
+    padding: 0;
 }
 
 .grid-filter-search {
