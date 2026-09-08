@@ -4,7 +4,7 @@ A real-time parking management system that shows live slot availability across m
 
 🔵 **Live demo:** [smartpark-hg.web.app](https://smartpark-hg.web.app) — try it instantly with the **"Try Demo Login"** button on the sign-in screen, no signup required.
 
-![Tests](https://github.com/himanshugoud/smartpark/actions/workflows/test.yml/badge.svg) ![Hosting](https://img.shields.io/badge/hosting-Firebase%20Hosting-orange?style=flat-square) ![Backend](https://img.shields.io/badge/backend-Firebase%20Realtime%20DB%20%2B%20Auth-blue?style=flat-square) ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow?style=flat-square)
+![Tests](https://github.com/himanshugoud/smartpark/actions/workflows/test.yml/badge.svg) ![Deploy](https://github.com/himanshugoud/smartpark/actions/workflows/firebase-hosting-merge.yml/badge.svg) ![Hosting](https://img.shields.io/badge/hosting-Firebase%20Hosting-orange?style=flat-square) ![Backend](https://img.shields.io/badge/backend-Firebase%20Realtime%20DB%20%2B%20Auth-blue?style=flat-square) ![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow?style=flat-square) ![Accessibility](https://img.shields.io/badge/Lighthouse%20Accessibility-100-brightgreen?style=flat-square)
 
 ---
 
@@ -39,16 +39,21 @@ A few things that went into this beyond a basic CRUD app:
 - **Migrated email/password auth to real Firebase Authentication** — accounts used to be validated against a custom, plaintext `localStorage` array. Rebuilt signup/login/logout/password-reset on real Firebase Auth, added `setPersistence` so "Remember me" has an actual effect (session vs. local persistence) instead of doing nothing, and — since every user is now a real authenticated account — tightened the database write rules to require `auth != null`, closing the gap the write-validation rules above were originally a workaround for.
 - **45 automated unit tests** covering booking-cost math, slot-status transitions, and form validation — the pricing/validation/slot-status logic was deliberately extracted out of DOM-heavy `script.js` into standalone, dependency-free modules specifically so it could be tested in isolation. Runs automatically on every push via GitHub Actions.
 - **Debugged a subtle DOM-timing bug** — the profile avatar looked blank after a refresh because the code was generating the fallback avatar image before the `<img>` element was actually attached to the page, so `document.getElementById` silently found nothing. Fixed by reordering initialization instead of adding a workaround.
+- **Computed actual WCAG contrast ratios rather than guessing a fix** — a Lighthouse audit flagged low-contrast text on the parking slots. Rather than picking a color that "looked fine," I calculated the real contrast ratio (relative luminance formula) for every slot-status color against candidate text colors, in both light and dark theme. Two states (reserved/blue, handicap/purple) turned out to need *opposite* text colors between themes — their light-mode shade needed white text, but their lighter dark-mode shade needed dark text instead — a case a visual guess would likely have missed. Took the site's Lighthouse Accessibility score from 83 to 100.
+- **Sent transactional email without a paid backend** — booking confirmation emails needed to fire on a successful booking, but Firebase's Trigger Email extension requires the Blaze (pay-as-you-go) plan. Integrated EmailJS instead, which sends directly from the browser — no backend, no billing account, and it fails silently (logs a note, doesn't block the booking) if unconfigured or rate-limited, so a transactional email issue never breaks the actual booking flow.
+- **CI/CD pipeline that gates deploys on tests passing** — set up GitHub Actions so every push to `main` runs the full 45-test suite first; the site only deploys to Firebase Hosting automatically if they pass. Broken code physically cannot reach production.
 
 ## Features
 
 **Guest**
 - Browse the live parking grid across multiple floors without logging in
 - See real-time slot status: Available, Booked, Occupied, Reserved, Handicap, EV Charging
+- Search by slot ID and filter the grid by type or availability
 
 **Logged in**
 - Sign up, log in with email/password, or sign in with Google (Firebase Authentication)
 - Book a slot with live duration and cost calculation
+- Automatic email confirmation on booking (slot, time, duration, amount) via EmailJS
 - Personal dashboard: active bookings, total hours parked, amount spent, loyalty points, recent activity
 - Upload a profile photo (or fall back to an auto-generated initials avatar), synced across the whole UI
 - One-click demo login for anyone evaluating the project without wanting to sign up
@@ -70,6 +75,23 @@ npm test
 
 Tests run automatically on every push via GitHub Actions (see the badge at the top of this README).
 
+## Accessibility & Performance
+
+Audited with Lighthouse (mobile, throttled network):
+
+| Category | Score |
+|---|---|
+| Accessibility | 100 |
+| Best Practices | 100 |
+| SEO | 91 |
+| Performance | 90 |
+
+Fixed via computed WCAG contrast ratios (not visual guessing), proper `aria-label`s on icon-only buttons/links, a `<main>` landmark, and correcting a heading-order skip — see the Engineering Highlights above for the details.
+
+## CI/CD
+
+Every push to `main` triggers a GitHub Actions pipeline that runs the full test suite first; the site only deploys to Firebase Hosting automatically if all 45 tests pass. No manual `firebase deploy` step, and broken code can't reach production.
+
 ## Tech Stack
 
 - **Frontend:** HTML5, CSS3, JavaScript (no framework)
@@ -87,14 +109,24 @@ Tests run automatically on every push via GitHub Actions (see the badge at the t
 ├── tests/                      # Vitest test suite (45 tests)
 ├── style.css                  # Main styling
 ├── firebase-config.js         # Firebase initialization
+├── emailjs-config.js          # EmailJS keys for booking confirmation emails
 ├── imagescript.js             # Profile photo upload/handling
 ├── vehicle.js                 # Vehicle-related logic
 ├── livechat.js / livechat.css # Live chat widget
 ├── chat-integration.js        # Chat integration logic
 ├── calling.js                 # In-app calling feature
 ├── theme.js / theme.css / theme-integration.js  # Theming
+├── loadtest.js                 # Load-test script (50 concurrent DB writes)
+├── db_rules_v2.json            # Firebase Realtime Database security rules
+├── firebase.json / .firebaserc # Firebase project + hosting config
+├── package.json / package-lock.json  # npm dependencies (for the test suite)
+├── .github/workflows/         # CI: tests on every push, auto-deploy to Firebase Hosting on main
+├── docs/screenshots/           # README screenshots
 ├── assets/                    # Demo video, OG share image
-└── sounds/                    # Notification sound effects
+├── sounds/                    # Notification sound effects
+├── 404.html
+├── LICENSE
+└── README.md
 ```
 
 ## Try the demo account
