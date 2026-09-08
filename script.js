@@ -32,7 +32,14 @@ let appState = {
         search: '',
         type: 'all',
         availableOnly: false
-    }
+    },
+    // ALL users' bookings (not just the current user's own), kept in sync
+    // from Firebase in real time. Needed separately from `bookings` (which
+    // stays scoped to "my bookings" for the dashboard/history UI) because
+    // slot-conflict checking and the status auto-correction sweep need to
+    // see every user's active bookings, not just the current user's — see
+    // subscribeToAllBookingsForConflictCheck() for the full explanation.
+    allBookings: []
 };
 
 // ========================
@@ -177,7 +184,12 @@ function animateCounter(element, target) {
 }
 
 function isSlotAvailableForBooking(slotId, floor, startTime, endTime, excludeBookingId = null) {
-    return !appState.bookings.some(booking => {
+    // Checks against appState.allBookings (every user's bookings, synced
+    // from Firebase) rather than appState.bookings (just the current
+    // user's own) — otherwise two different users could book the exact
+    // same slot/time, since neither browser would know about the other's
+    // booking. See subscribeToAllBookingsForConflictCheck() for details.
+    return !appState.allBookings.some(booking => {
         if (excludeBookingId && booking.id === excludeBookingId) return false;
         
         return booking.slotId === slotId && 
@@ -199,7 +211,10 @@ function getSlotBookingTimesInfo(slotId, floor) {
     const formatDate = (date) => date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     const formatTime = (date) => date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     
-    const upcoming = appState.bookings
+    // appState.allBookings (every user's bookings), not appState.bookings
+    // (just the current user's own) — a slot booked by someone else should
+    // still show as unavailable here.
+    const upcoming = appState.allBookings
         .filter(b =>
             b.status === 'confirmed' &&
             b.slotId === slotId &&
@@ -323,6 +338,8 @@ function initializeApp() {
                 appState.isLoggedIn = false;
                 appState.bookings = [];
                 appState.payments = [];
+                appState.allBookings = [];
+                detachBookingListeners();
                 updateUserUI();
                 renderParkingMap();
                 updateFloorStatistics();
@@ -3074,8 +3091,12 @@ function handleExtendConfirmation(booking) {
         
         appState.payments.push(extendPayment);
         
-        localStorage.setItem('smartpark_bookings', JSON.stringify(appState.bookings));
-        localStorage.setItem('smartpark_payments', JSON.stringify(appState.payments));
+        // Push the updated booking + new payment to Firebase (this is what
+        // makes the extension persist across devices/browsers, not just
+        // this one). The onValue listener will receive this same data back
+        // and keep appState in sync; the direct mutation above just gives
+        // instant feedback without waiting on that round-trip.
+        saveBookingAndPaymentToFirebase(appState.bookings[bookingIndex], extendPayment);
         
         hideLoading();
         
@@ -3702,6 +3723,12 @@ function handlePayment() {
         
         appState.bookings.push(booking);
         appState.payments.push(payment);
+        // Also push into allBookings immediately (optimistic) — the
+        // computeAuthoritativeSlotStatus call right below needs to see
+        // this brand-new booking to get the right status, and it reads
+        // from allBookings, not bookings. The Firebase listener will later
+        // reconcile this with the same data once the write below confirms.
+        appState.allBookings.push(booking);
         
         // Consider ALL of this slot's confirmed bookings together, not just
         // the one just created — the slot may already have a separate
@@ -3709,8 +3736,10 @@ function handlePayment() {
         const newSlotStatus = computeAuthoritativeSlotStatus(booking.floor, booking.slotId);
         updateSlotStatus(booking.slotId, booking.floor, newSlotStatus);
         
-        localStorage.setItem('smartpark_bookings', JSON.stringify(appState.bookings));
-        localStorage.setItem('smartpark_payments', JSON.stringify(appState.payments));
+        // Persists to Firebase under this user's own scoped path — this is
+        // what makes the booking actually visible on other devices/browsers
+        // and to the conflict-check that other users' bookings run against.
+        saveBookingAndPaymentToFirebase(booking, payment);
         
         updateParkingAfterBooking(booking.floor, booking.slotId, newSlotStatus);
         
@@ -3855,7 +3884,12 @@ function computeAuthoritativeSlotStatus(floor, slotId) {
     // Logic now lives in slotStatus.js (loaded before this file) so it can
     // be unit-tested without a DOM or live appState. This is a thin
     // wrapper that supplies the real global state the pure function needs.
-    return computeAuthoritativeSlotStatusPure(floor, slotId, appState.bookings, Date.now());
+    // Uses appState.allBookings (every user's bookings, synced from
+    // Firebase) rather than appState.bookings (just the current user's
+    // own) — otherwise this sweep could incorrectly reset a slot back to
+    // "available" out from under a different user's real, active booking
+    // that this browser had no visibility into.
+    return computeAuthoritativeSlotStatusPure(floor, slotId, appState.allBookings, Date.now());
 }
 
 // Sweeps EVERY slot on every floor (not just ones that currently have a
@@ -4369,26 +4403,91 @@ function updateUserUI() {
     }
 }
 
+// Booking/payment Firebase listener handles, so logout() can cleanly
+// detach them (onValue's v9 SDK return value IS the unsubscribe function).
+let unsubscribeOwnBookings = null;
+let unsubscribeOwnPayments = null;
+let unsubscribeAllBookings = null;
+
 function loadUserData() {
     if (!appState.isLoggedIn) return;
-    
-    try {
-        const savedBookings = localStorage.getItem('smartpark_bookings');
-        const savedPayments = localStorage.getItem('smartpark_payments');
-        
-        if (savedBookings) {
-            const allBookings = JSON.parse(savedBookings);
-            appState.bookings = allBookings.filter(b => b.userId === appState.currentUser.id);
-        }
-        if (savedPayments) {
-            const allPayments = JSON.parse(savedPayments);
-            appState.payments = allPayments.filter(p => p.userId === appState.currentUser.id);
-        }
-    } catch (e) {
-        console.error('Error loading user data:', e);
-    }
-    
+    subscribeToOwnBookingsAndPayments();
+    subscribeToAllBookingsForConflictCheck();
     updateDashboard();
+}
+
+// Real-time sync of the CURRENT user's own bookings/payments from Firebase
+// (bookings/{uid}, payments/{uid}), replacing the old localStorage-only
+// storage. This is what actually fixes bookings not showing up across
+// devices/browsers — Firebase is now the one shared source of truth
+// instead of each browser's own separate localStorage.
+function subscribeToOwnBookingsAndPayments() {
+    if (!window.SmartParkFirebase || !appState.currentUser) return;
+    const { db, ref, onValue } = window.SmartParkFirebase;
+    const uid = appState.currentUser.id;
+
+    unsubscribeOwnBookings = onValue(ref(db, `bookings/${uid}`), (snapshot) => {
+        const data = snapshot.val() || {};
+        appState.bookings = Object.values(data);
+        if (appState.isLoggedIn) updateDashboard();
+    }, (err) => console.error('Error syncing bookings from Firebase:', err));
+
+    unsubscribeOwnPayments = onValue(ref(db, `payments/${uid}`), (snapshot) => {
+        const data = snapshot.val() || {};
+        appState.payments = Object.values(data);
+        if (appState.isLoggedIn) updateDashboard();
+    }, (err) => console.error('Error syncing payments from Firebase:', err));
+}
+
+// Real-time sync of EVERY user's bookings (not just the current user's own)
+// into appState.allBookings. This is the actual fix for two separate real
+// bugs that existed when bookings only lived in localStorage:
+//   1. Two different users could book the exact same slot for the same
+//      time, because each browser's conflict check only knew about its
+//      own user's bookings, never anyone else's.
+//   2. The 30-second status auto-correction sweep could flip a slot back
+//      to "available" out from under a real, active booking made by a
+//      DIFFERENT user, because it had no visibility into that booking.
+// isSlotAvailableForBooking(), getSlotBookingTimesInfo(), and
+// computeAuthoritativeSlotStatus() all read from this array specifically
+// (not appState.bookings) so they always see the true, system-wide state.
+function subscribeToAllBookingsForConflictCheck() {
+    if (!window.SmartParkFirebase || !appState.currentUser) return;
+    const { db, ref, onValue } = window.SmartParkFirebase;
+
+    unsubscribeAllBookings = onValue(ref(db, 'bookings'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const all = [];
+        Object.values(data).forEach(userBookings => {
+            Object.values(userBookings || {}).forEach(b => all.push(b));
+        });
+        appState.allBookings = all;
+    }, (err) => console.error('Error syncing all-bookings for conflict check:', err));
+}
+
+function detachBookingListeners() {
+    if (unsubscribeOwnBookings) { unsubscribeOwnBookings(); unsubscribeOwnBookings = null; }
+    if (unsubscribeOwnPayments) { unsubscribeOwnPayments(); unsubscribeOwnPayments = null; }
+    if (unsubscribeAllBookings) { unsubscribeAllBookings(); unsubscribeAllBookings = null; }
+}
+
+// Writes one booking + its payment to Firebase under the CURRENT user's own
+// scoped path (bookings/{uid}/{bookingId}, payments/{uid}/{paymentId}) —
+// the only path the security rules let this user write to. appState.bookings
+// updates itself automatically afterwards via the onValue listener above,
+// so callers don't need to also push into the local array by hand.
+function saveBookingAndPaymentToFirebase(booking, payment) {
+    if (!window.SmartParkFirebase || !appState.currentUser) {
+        console.warn('Firebase not available — booking/payment not persisted.');
+        return Promise.resolve();
+    }
+    const { db, ref, set } = window.SmartParkFirebase;
+    const uid = appState.currentUser.id;
+
+    return Promise.all([
+        set(ref(db, `bookings/${uid}/${booking.id}`), booking),
+        payment ? set(ref(db, `payments/${uid}/${payment.id}`), payment) : Promise.resolve()
+    ]).catch(err => console.error('Error saving booking/payment to Firebase:', err));
 }
 
 function logout() {
@@ -4396,6 +4495,8 @@ function logout() {
         window.SmartParkFirebase.signOut(window.SmartParkFirebase.auth)
             .catch((err) => console.error('Firebase sign-out error:', err));
     }
+
+    detachBookingListeners();
 
     appState.currentUser = null;
     appState.isLoggedIn = false;
@@ -4416,6 +4517,7 @@ function logout() {
     // (and would even carry over into whichever account logs in next).
     appState.bookings = [];
     appState.payments = [];
+    appState.allBookings = [];
     // 'smartpark_user' is no longer used — Firebase Auth now owns session
     // persistence entirely (see setPersistence in handleLogin/handleGoogleLogin
     // and the onAuthStateChanged listener in initializeApp). Only the
@@ -6092,6 +6194,18 @@ function cancelBooking(bookingId) {
             
             const booking = appState.bookings[bookingIndex];
             
+            // Also reflect the cancellation in allBookings immediately —
+            // by the time this runs, appState.allBookings may hold separate
+            // object copies from its own Firebase listener (not the same
+            // references as appState.bookings), so the mutation above isn't
+            // guaranteed to already be visible there. computeAuthoritativeSlotStatus
+            // reads allBookings, so this needs to be explicit rather than
+            // assumed.
+            const allBookingsIndex = appState.allBookings.findIndex(b => b.id === bookingId);
+            if (allBookingsIndex !== -1) {
+                appState.allBookings[allBookingsIndex].status = 'cancelled';
+            }
+            
             // Don't force this straight to 'available' — the slot may have
             // a SEPARATE, still-confirmed booking for a different time.
             const slotStatusAfterCancel = computeAuthoritativeSlotStatus(booking.floor, booking.slotId);
@@ -6109,8 +6223,7 @@ function cancelBooking(bookingId) {
             
             appState.payments.push(refundPayment);
             
-            localStorage.setItem('smartpark_bookings', JSON.stringify(appState.bookings));
-            localStorage.setItem('smartpark_payments', JSON.stringify(appState.payments));
+            saveBookingAndPaymentToFirebase(booking, refundPayment);
             
             updateParkingAfterBooking(booking.floor, booking.slotId, slotStatusAfterCancel);
             showToast('Booking cancelled. 50% refund issued.', 'success');
