@@ -1298,7 +1298,7 @@ a:hover {
     flex-shrink: 0;
     min-width: 0;
     min-height: 0;
-    color: white;
+    color: #111827;
 }
 
 .parking-slot-map:hover {
@@ -1324,6 +1324,22 @@ a:hover {
 .parking-slot-map.available.handicap { background: var(--secondary); }
 .parking-slot-map.available.electric { background: var(--primary-light); }
 .parking-slot-map.disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Contrast fix: computed against every status color in both themes, a
+   single fixed text color doesn't pass 4.5:1 everywhere. Dark text
+   (#111827, set above) works for available/electric/booked/occupied/
+   entrance/exit in both themes. Reserved (blue) and handicap (purple)
+   are the two exceptions — their light-theme shade needs white text,
+   but their (lighter) dark-theme shade needs dark text instead. */
+.parking-slot-map.reserved,
+.parking-slot-map.available.handicap {
+    color: #ffffff;
+}
+
+[data-theme="dark"] .parking-slot-map.reserved,
+[data-theme="dark"] .parking-slot-map.available.handicap {
+    color: #111827;
+}
 
 .slot-number {
     font-size: 0.65rem;
@@ -1461,12 +1477,14 @@ a:hover {
 
 .parking-marker.entrance { 
     background: var(--success); 
+    color: #111827;
     top: 10px;
     left: 10px;
 }
 
 .parking-marker.exit { 
     background: var(--danger); 
+    color: #111827;
     bottom: 10px;
     right: 10px;
 }
