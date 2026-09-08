@@ -64,6 +64,7 @@ class ThemeManager {
         themeToggleBtn.className = 'theme-toggle-btn-navbar';
         themeToggleBtn.id = 'theme-toggle-btn';
         themeToggleBtn.title = 'Toggle Theme';
+        themeToggleBtn.setAttribute('aria-label', 'Toggle color theme');
         themeToggleBtn.innerHTML = '<i class="fas fa-palette"></i>';
         
         // Add to navbar (next to Book Now button)
@@ -170,6 +171,7 @@ class ThemeManager {
         // Update button title
         const themeName = this.themes[this.currentTheme] || 'Custom';
         toggleBtn.title = `Current Theme: ${themeName}\nClick to switch`;
+        toggleBtn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch theme.`);
     }
     
     saveTheme() {
