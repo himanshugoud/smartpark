@@ -9,9 +9,9 @@
 //   templateId -> Email Templates > (your template) > Template ID
 // ============================================================
 const EMAILJS_CONFIG = {
-    publicKey: 'YOUR_PUBLIC_KEY_HERE',
-    serviceId: 'YOUR_SERVICE_ID_HERE',
-    templateId: 'YOUR_TEMPLATE_ID_HERE'
+    publicKey: 'Y6unG_VxIPzJfe-oN',
+    serviceId: 'service_dfx94nb',
+    templateId: 'template_y9v3p8g'
 };
 
 // Initializes EmailJS as soon as this file loads. Safe to leave in place
