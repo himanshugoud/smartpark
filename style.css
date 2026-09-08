@@ -1044,6 +1044,38 @@ a:hover {
     gap: 0.5rem;
 }
 
+@media (max-width: 576px) {
+    .floor-tabs {
+        /* The three floor-tab buttons don't fit a typical phone width
+           side by side. Rather than wrapping them awkwardly, let this
+           row scroll horizontally, which is a standard, thumb-friendly
+           pattern for tab bars on mobile. */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        padding-bottom: 0.25rem;
+        scrollbar-width: none;
+    }
+
+    .floor-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .floor-tab {
+        flex-shrink: 0;
+    }
+
+    .grid-filter-bar {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .grid-filter-search {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
+}
+
 .floor-tab {
     padding: 0.75rem 1.5rem;
     background: var(--gray-100);
@@ -1963,6 +1995,39 @@ a:hover {
 .bookings-table tbody tr:hover,
 .payments-table tbody tr:hover {
     background: var(--bg-secondary);
+}
+
+/* The refund table had no styling at all before this — it was rendering
+   as a bare, unstyled browser-default table with no mobile handling,
+   unlike the bookings/payments tables above. Matching their pattern
+   (styled cells + horizontal scroll on narrow screens) rather than
+   leaving it as the odd one out. */
+.refund-section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.refund-table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.refund-table th {
+    background: var(--gray-100);
+    padding: 1rem;
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.refund-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
 }
 
 .status-badge {
