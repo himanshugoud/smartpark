@@ -238,7 +238,18 @@
             
             // Integration with main app
             integrateWithApp: function() {
-                // Override the help modal chat button
+                // NOTE: this specifically looked for the chat-support button
+                // nested inside a #help-modal element that no longer exists
+                // (Help & Support is now an inline page section, not a
+                // modal), so this lookup always failed. Initially "fixed"
+                // this to query the button directly — but it turned out
+                // initializeChatIntegration() above already wires up
+                // .chat-support-btn correctly and is the code path actually
+                // running in production (it's what sets the "Start Live
+                // Chat" label and the auto-message behavior). Reverted back
+                // to leave this as the harmless dead code it already was,
+                // rather than ship a redundant third click handler on the
+                // same button.
                 const helpModal = document.getElementById('help-modal');
                 if (helpModal) {
                     const modalChatBtn = helpModal.querySelector('.chat-support-btn');
