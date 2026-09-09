@@ -39,7 +39,11 @@ let appState = {
     // slot-conflict checking and the status auto-correction sweep need to
     // see every user's active bookings, not just the current user's — see
     // subscribeToAllBookingsForConflictCheck() for the full explanation.
-    allBookings: []
+    allBookings: [],
+    // False until the very first Firebase snapshot of ALL users' bookings
+    // has actually arrived. Needed as an explicit guard — see the check at
+    // the top of refreshBookingDrivenSlotStatuses() for why.
+    allBookingsReady: false
 };
 
 // ========================
@@ -339,6 +343,7 @@ function initializeApp() {
                 appState.bookings = [];
                 appState.payments = [];
                 appState.allBookings = [];
+                appState.allBookingsReady = false;
                 detachBookingListeners();
                 updateUserUI();
                 renderParkingMap();
@@ -3902,6 +3907,17 @@ function computeAuthoritativeSlotStatus(floor, slotId) {
 // data written before this logic existed).
 function refreshBookingDrivenSlotStatuses() {
     if (!window.SmartParkFirebase) return;
+    // THE ACTUAL BUG (found and fixed): this sweep can run before the
+    // Firebase listener that populates appState.allBookings has received
+    // its first snapshot — e.g. right at page load, or immediately after
+    // login, before that async round-trip completes. If it ran anyway
+    // with an empty/incomplete allBookings, it would conclude "no active
+    // booking here" for every slot and incorrectly write 'available' back
+    // to the SHARED database, wiping out real bookings for every user —
+    // not just locally. Skipping the sweep entirely until we know we have
+    // the real, complete picture prevents that.
+    if (appState.isLoggedIn && !appState.allBookingsReady) return;
+
     const { db, ref, update } = window.SmartParkFirebase;
     
     Object.keys(appState.parkingData).forEach(floor => {
@@ -4462,6 +4478,7 @@ function subscribeToAllBookingsForConflictCheck() {
             Object.values(userBookings || {}).forEach(b => all.push(b));
         });
         appState.allBookings = all;
+        appState.allBookingsReady = true;
     }, (err) => console.error('Error syncing all-bookings for conflict check:', err));
 }
 
@@ -4518,6 +4535,7 @@ function logout() {
     appState.bookings = [];
     appState.payments = [];
     appState.allBookings = [];
+    appState.allBookingsReady = false;
     // 'smartpark_user' is no longer used — Firebase Auth now owns session
     // persistence entirely (see setPersistence in handleLogin/handleGoogleLogin
     // and the onAuthStateChanged listener in initializeApp). Only the
