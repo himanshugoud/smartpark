@@ -4479,6 +4479,12 @@ function subscribeToAllBookingsForConflictCheck() {
         });
         appState.allBookings = all;
         appState.allBookingsReady = true;
+        // The very first sweep at page load likely skipped itself (see the
+        // guard in refreshBookingDrivenSlotStatuses) because this data
+        // hadn't arrived yet. Now that it has, run the correction right
+        // away instead of leaving the grid showing a stale status for up
+        // to 30 seconds until the next scheduled sweep.
+        refreshBookingDrivenSlotStatuses();
     }, (err) => console.error('Error syncing all-bookings for conflict check:', err));
 }
 
