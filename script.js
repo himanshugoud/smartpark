@@ -3916,9 +3916,13 @@ function refreshBookingDrivenSlotStatuses() {
     // to the SHARED database, wiping out real bookings for every user —
     // not just locally. Skipping the sweep entirely until we know we have
     // the real, complete picture prevents that.
-    if (appState.isLoggedIn && !appState.allBookingsReady) return;
+    if (appState.isLoggedIn && !appState.allBookingsReady) {
+        console.log('[sweep] refreshBookingDrivenSlotStatuses() SKIPPED — logged in but allBookings not loaded yet');
+        return;
+    }
 
     const { db, ref, update } = window.SmartParkFirebase;
+    let correctionsMade = 0;
     
     Object.keys(appState.parkingData).forEach(floor => {
         const floorSlots = appState.parkingData[floor] || [];
@@ -3931,12 +3935,16 @@ function refreshBookingDrivenSlotStatuses() {
             const targetStatus = computeAuthoritativeSlotStatus(floor, slot.id);
             if (targetStatus === slot.status) return;
             
+            correctionsMade++;
+            console.log(`[sweep] correcting ${floor}/${slot.id}: ${slot.status} -> ${targetStatus}`);
             update(ref(db, `parking/${floor}/${slot.id}`), {
                 status: targetStatus,
                 statusUpdatedAt: Date.now()
             }).catch(err => console.error('Error auto-updating slot status:', err));
         });
     });
+    
+    console.log(`[sweep] refreshBookingDrivenSlotStatuses() ran — ${correctionsMade} correction(s) made, allBookings has ${appState.allBookings.length} booking(s)`);
 }
 
 // Explicit floor/slotId/status params (rather than relying on
@@ -4427,6 +4435,7 @@ let unsubscribeAllBookings = null;
 
 function loadUserData() {
     if (!appState.isLoggedIn) return;
+    console.log('[bookings] loadUserData() running — attaching Firebase booking listeners');
     subscribeToOwnBookingsAndPayments();
     subscribeToAllBookingsForConflictCheck();
     updateDashboard();
@@ -4468,7 +4477,10 @@ function subscribeToOwnBookingsAndPayments() {
 // computeAuthoritativeSlotStatus() all read from this array specifically
 // (not appState.bookings) so they always see the true, system-wide state.
 function subscribeToAllBookingsForConflictCheck() {
-    if (!window.SmartParkFirebase || !appState.currentUser) return;
+    if (!window.SmartParkFirebase || !appState.currentUser) {
+        console.log('[bookings] subscribeToAllBookingsForConflictCheck() skipped — Firebase or currentUser not ready yet');
+        return;
+    }
     const { db, ref, onValue } = window.SmartParkFirebase;
 
     unsubscribeAllBookings = onValue(ref(db, 'bookings'), (snapshot) => {
@@ -4479,13 +4491,14 @@ function subscribeToAllBookingsForConflictCheck() {
         });
         appState.allBookings = all;
         appState.allBookingsReady = true;
+        console.log(`[bookings] all-bookings snapshot received — ${all.length} total booking(s) across all users. Triggering status correction now.`);
         // The very first sweep at page load likely skipped itself (see the
         // guard in refreshBookingDrivenSlotStatuses) because this data
         // hadn't arrived yet. Now that it has, run the correction right
         // away instead of leaving the grid showing a stale status for up
         // to 30 seconds until the next scheduled sweep.
         refreshBookingDrivenSlotStatuses();
-    }, (err) => console.error('Error syncing all-bookings for conflict check:', err));
+    }, (err) => console.error('[bookings] Error syncing all-bookings for conflict check:', err));
 }
 
 function detachBookingListeners() {
