@@ -3916,8 +3916,24 @@ function refreshBookingDrivenSlotStatuses() {
     // to the SHARED database, wiping out real bookings for every user —
     // not just locally. Skipping the sweep entirely until we know we have
     // the real, complete picture prevents that.
-    if (appState.isLoggedIn && !appState.allBookingsReady) {
-        console.log('[sweep] refreshBookingDrivenSlotStatuses() SKIPPED — logged in but allBookings not loaded yet');
+    // THE ACTUAL BUG (found and fixed): this sweep can run before the
+    // Firebase listener that populates appState.allBookings has received
+    // its first snapshot — e.g. right at page load, or immediately after
+    // login, before that async round-trip completes. If it ran anyway
+    // with an empty/incomplete allBookings, it would conclude "no active
+    // booking here" for every slot and incorrectly write 'available' back
+    // to the SHARED database, wiping out real bookings for every user —
+    // not just locally. Skipping the sweep entirely until we know we have
+    // the real, complete picture prevents that.
+    //
+    // Deliberately NOT also checking appState.isLoggedIn here — at the
+    // very first call, right at page load, isLoggedIn is still false even
+    // for an already-logged-in user, because Firebase Auth's session
+    // restore hasn't resolved yet at that exact synchronous moment. Relying
+    // on isLoggedIn let that first call slip through the guard with zero
+    // bookings loaded, defeating the whole point of this check.
+    if (!appState.allBookingsReady) {
+        console.log('[sweep] refreshBookingDrivenSlotStatuses() SKIPPED — allBookings not loaded yet');
         return;
     }
 
