@@ -4014,7 +4014,11 @@ function resetBookingForm() {
     document.getElementById('step-1').classList.add('active');
     
     const bookingForm = document.getElementById('booking-form');
-    if (bookingForm) bookingForm.reset();
+    // Pre-existing bug, unrelated to today's changes: #booking-form is a
+    // <div>, not a real <form> element, so .reset() never existed on it —
+    // this line always threw, which silently killed everything after it in
+    // this function (the date/button resets below never ran).
+    if (bookingForm && typeof bookingForm.reset === 'function') bookingForm.reset();
     
     // CHANGED: Reset date to current date
     const dateInput = document.getElementById('booking-date');
