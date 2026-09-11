@@ -1,4 +1,15 @@
 // ========================
+// Debug logging
+// ========================
+// Off by default so the console stays clean for normal use. Set to true
+// (or run `localStorage.setItem('smartpark_debug_bookings', '1')` in the
+// browser console, no code change needed) to trace exactly what the
+// Firebase booking sync and the slot-status auto-correction sweep are
+// doing — genuinely useful if either ever misbehaves again, without
+// cluttering every visitor's console by default.
+const DEBUG_BOOKINGS = localStorage.getItem('smartpark_debug_bookings') === '1';
+
+// ========================
 // Application State
 // ========================
 let appState = {
@@ -3933,7 +3944,7 @@ function refreshBookingDrivenSlotStatuses() {
     // on isLoggedIn let that first call slip through the guard with zero
     // bookings loaded, defeating the whole point of this check.
     if (!appState.allBookingsReady) {
-        console.log('[sweep] refreshBookingDrivenSlotStatuses() SKIPPED — allBookings not loaded yet');
+    if (DEBUG_BOOKINGS) console.log('[sweep] refreshBookingDrivenSlotStatuses() SKIPPED — allBookings not loaded yet');
         return;
     }
 
@@ -3952,7 +3963,7 @@ function refreshBookingDrivenSlotStatuses() {
             if (targetStatus === slot.status) return;
             
             correctionsMade++;
-            console.log(`[sweep] correcting ${floor}/${slot.id}: ${slot.status} -> ${targetStatus}`);
+            if (DEBUG_BOOKINGS) console.log(`[sweep] correcting ${floor}/${slot.id}: ${slot.status} -> ${targetStatus}`);
             // serverTimestamp() (not Date.now()) — the security rules
             // require statusUpdatedAt <= the DATABASE's own clock. Using
             // the client's local clock here would fail that check (and
@@ -3968,7 +3979,7 @@ function refreshBookingDrivenSlotStatuses() {
         });
     });
     
-    console.log(`[sweep] refreshBookingDrivenSlotStatuses() ran — ${correctionsMade} correction(s) made, allBookings has ${appState.allBookings.length} booking(s)`);
+    if (DEBUG_BOOKINGS) console.log(`[sweep] refreshBookingDrivenSlotStatuses() ran — ${correctionsMade} correction(s) made, allBookings has ${appState.allBookings.length} booking(s)`);
 }
 
 // Explicit floor/slotId/status params (rather than relying on
@@ -4468,7 +4479,7 @@ let unsubscribeAllBookings = null;
 
 function loadUserData() {
     if (!appState.isLoggedIn) return;
-    console.log('[bookings] loadUserData() running — attaching Firebase booking listeners');
+    if (DEBUG_BOOKINGS) console.log('[bookings] loadUserData() running — attaching Firebase booking listeners');
     subscribeToOwnBookingsAndPayments();
     subscribeToAllBookingsForConflictCheck();
     updateDashboard();
@@ -4511,7 +4522,7 @@ function subscribeToOwnBookingsAndPayments() {
 // (not appState.bookings) so they always see the true, system-wide state.
 function subscribeToAllBookingsForConflictCheck() {
     if (!window.SmartParkFirebase || !appState.currentUser) {
-        console.log('[bookings] subscribeToAllBookingsForConflictCheck() skipped — Firebase or currentUser not ready yet');
+        if (DEBUG_BOOKINGS) console.log('[bookings] subscribeToAllBookingsForConflictCheck() skipped — Firebase or currentUser not ready yet');
         return;
     }
     const { db, ref, onValue } = window.SmartParkFirebase;
@@ -4524,7 +4535,7 @@ function subscribeToAllBookingsForConflictCheck() {
         });
         appState.allBookings = all;
         appState.allBookingsReady = true;
-        console.log(`[bookings] all-bookings snapshot received — ${all.length} total booking(s) across all users. Triggering status correction now.`);
+        if (DEBUG_BOOKINGS) console.log(`[bookings] all-bookings snapshot received — ${all.length} total booking(s) across all users. Triggering status correction now.`);
         // The very first sweep at page load likely skipped itself (see the
         // guard in refreshBookingDrivenSlotStatuses) because this data
         // hadn't arrived yet. Now that it has, run the correction right
