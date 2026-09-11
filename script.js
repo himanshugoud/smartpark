@@ -3937,7 +3937,7 @@ function refreshBookingDrivenSlotStatuses() {
         return;
     }
 
-    const { db, ref, update } = window.SmartParkFirebase;
+    const { db, ref, update, serverTimestamp } = window.SmartParkFirebase;
     let correctionsMade = 0;
     
     Object.keys(appState.parkingData).forEach(floor => {
@@ -3953,9 +3953,17 @@ function refreshBookingDrivenSlotStatuses() {
             
             correctionsMade++;
             console.log(`[sweep] correcting ${floor}/${slot.id}: ${slot.status} -> ${targetStatus}`);
+            // serverTimestamp() (not Date.now()) — the security rules
+            // require statusUpdatedAt <= the DATABASE's own clock. Using
+            // the client's local clock here would fail that check (and
+            // get silently rejected as permission_denied) any time the
+            // user's system clock is even slightly ahead of real time,
+            // which is common. Firebase resolves this placeholder to its
+            // own server time before evaluating rules, so it always
+            // satisfies the check regardless of the client's clock.
             update(ref(db, `parking/${floor}/${slot.id}`), {
                 status: targetStatus,
-                statusUpdatedAt: Date.now()
+                statusUpdatedAt: serverTimestamp()
             }).catch(err => console.error('Error auto-updating slot status:', err));
         });
     });
@@ -3975,10 +3983,15 @@ function updateParkingAfterBooking(floor, slotId, status) {
         // change (for this tab AND every other open tab/device) and
         // handle the re-render automatically.
         if (window.SmartParkFirebase) {
-            const { db, ref, update } = window.SmartParkFirebase;
+            const { db, ref, update, serverTimestamp } = window.SmartParkFirebase;
+            // serverTimestamp(), not Date.now() — see the matching comment
+            // in refreshBookingDrivenSlotStatuses() for why. This exact
+            // write is what was intermittently failing with
+            // permission_denied whenever a user's system clock ran ahead
+            // of real time.
             update(ref(db, `parking/${floor}/${slotId}`), {
                 status: status,
-                statusUpdatedAt: Date.now()
+                statusUpdatedAt: serverTimestamp()
             }).catch(err => console.error('Firebase parking update error:', err));
         }
     }
